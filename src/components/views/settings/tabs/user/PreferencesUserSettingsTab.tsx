@@ -101,6 +101,7 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
         'Pill.shouldShowPillAvatar',
         'TextualBody.enableBigEmoji',
         'scrollToBottomOnMessageSent',
+        'useOnlyCurrentProfiles',
     ];
     static GENERAL_SETTINGS = [
         'promptBeforeInviteUnknownUsers',
