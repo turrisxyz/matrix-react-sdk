@@ -43,6 +43,7 @@ import MessageEditHistoryDialog from "../dialogs/MessageEditHistoryDialog";
 import EditMessageComposer from '../rooms/EditMessageComposer';
 import LinkPreviewGroup from '../rooms/LinkPreviewGroup';
 import { IBodyProps } from "./IBodyProps";
+import { TranslateThis } from "./TranslateThis";
 import RoomContext from "../../../contexts/RoomContext";
 import AccessibleButton from '../elements/AccessibleButton';
 import { options as linkifyOpts } from "../../../linkify-matrix";
@@ -599,6 +600,13 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             body = <>
                 { body }
                 { this.renderPendingModerationMarker() }
+            </>;
+        }
+        const suggestTranslation = true;
+        if (suggestTranslation) {
+            body = <>
+                { body }
+                <TranslateThis/>
             </>;
         }
 
