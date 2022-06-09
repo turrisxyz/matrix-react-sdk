@@ -62,6 +62,8 @@ export interface IConfigOptions {
 
     map_style_url?: string; // for location-shared maps
 
+    lilt_api_key?: string; // for translation of messages
+
     embedded_pages?: {
         welcome_url?: string;
         home_url?: string;

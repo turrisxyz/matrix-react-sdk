@@ -48,6 +48,7 @@ import RoomContext from "../../../contexts/RoomContext";
 import AccessibleButton from '../elements/AccessibleButton';
 import { options as linkifyOpts } from "../../../linkify-matrix";
 import { getParentEventId } from '../../../utils/Reply';
+import { MatrixClientPeg } from '../../../MatrixClientPeg';
 
 const MAX_HIGHLIGHT_LENGTH = 4096;
 
@@ -68,7 +69,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
     static contextType = RoomContext;
     public context!: React.ContextType<typeof RoomContext>;
 
-    constructor(props) {
+    constructor(props: IBodyProps) {
         super(props);
 
         this.state = {
@@ -558,6 +559,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         // only strip reply if this is the original replying event, edits thereafter do not have the fallback
         const stripReply = !mxEvent.replacingEvent() && !!getParentEventId(mxEvent);
         let body;
+        let text: string;
         if (SettingsStore.isEnabled("feature_extensible_events")) {
             const extev = this.props.mxEvent.unstableExtensibleEvent as MessageEvent;
             if (extev?.isEquivalentTo(M_MESSAGE)) {
@@ -577,6 +579,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
                     returnString: false,
                 });
             }
+            text = extev.text;
         }
         if (!body) {
             isEmote = content.msgtype === MsgType.Emote;
@@ -589,6 +592,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
                 ref: this.contentRef,
                 returnString: false,
             });
+            text = content.body;
         }
         if (this.props.replacingEventId) {
             body = <>
@@ -603,10 +607,11 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             </>;
         }
         const suggestTranslation = true;
-        if (suggestTranslation) {
+        const isOwnEvent = this.props.mxEvent?.getSender() === MatrixClientPeg.get().getUserId();
+        if (suggestTranslation && !isOwnEvent) {
             body = <>
                 { body }
-                <TranslateThis/>
+                <TranslateThis text={text} />
             </>;
         }
 

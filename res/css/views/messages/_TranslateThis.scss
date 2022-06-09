@@ -26,6 +26,23 @@ limitations under the License.
     .mx_TranslateThis_button:hover {
         opacity: 1.0;
     }
+
+    /* Similar to mx_EventTile_edited */
+    .mx_TranslateThis_translation {
+        color: $roomtopic-color;
+        font-size: $font-12px;
+        text-align: left; /* Needed in bubble */
+    }
+}
+
+
+.mx_TranslateThis.mx_TranslateThis_translated {
+    background-color: $quinary-content;
+    padding-top: 4px;
+    border-radius: 3px;
+    padding-left: 6px;
+    padding-right: 6px;
+    padding-bottom: 6px;
 }
 
 .mx_EventTile[data-layout=bubble] .mx_TranslateThis {
@@ -34,4 +51,8 @@ limitations under the License.
     .mx_TranslateThis_button {
         border-top: 2px;
     }
+}
+
+.mx_EventTile[data-layout=bubble] .mx_TranslateThis.mx_TranslateThis_translated {
+    border-left: 2px solid $accent;
 }

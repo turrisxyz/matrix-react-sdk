@@ -14,20 +14,85 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { ReactElement, useState } from 'react';
 
 import { _t } from "../../../languageHandler";
+import SdkConfig from '../../../SdkConfig';
 import AccessibleButton, { ButtonEvent } from '../elements/AccessibleButton';
 
-export function TranslateThis() {
-    const onTranslateThisClick = (ev: ButtonEvent) => { alert(1); };
+const liltApiUrl = "https://lilt.com/2/translate?memory_id=69501&source=";
+const liltApiKey = SdkConfig.get().lilt_api_key;
 
+enum Status {
+    Ready,
+    Translating,
+    Translated,
+    Failed,
+}
+
+interface IProps {
+    text: string;
+}
+
+export function TranslateThis(props: IProps) {
+    const [status, setStatus] = useState(Status.Ready);
+    const [translation, setTranslation] = useState();
+
+    // TODO: don't show for my messages
+
+    switch (status) {
+        case Status.Translated: return renderTranslated(translation);
+        default: return renderButton(props.text, status, setStatus, setTranslation);
+    }
+}
+
+function renderButton(text: string, status: Status, setStatus: any, setTranslation: any): ReactElement {
     return <div className="mx_TranslateThis">
         <AccessibleButton
-            onClick={onTranslateThisClick}
+            onClick={onTranslateThisClick(text, setStatus, setTranslation)}
             className="mx_TranslateThis_button"
+            disabled={status === Status.Translating}
         >
-            { _t("Translate this") }
+            { message(status) }
         </AccessibleButton>
     </div>;
+}
+
+function renderTranslated(translation: string): ReactElement {
+    return <div className="mx_TranslateThis mx_TranslateThis_translated">
+        <div className="mx_TranslateThis_translation">{ _t("Translation:") }</div>
+        <div>{ translation }</div>
+    </div>;
+}
+
+// TODO: fix `any`
+function onTranslateThisClick(text: string, setStatus: any, setTranslation: any) {
+    return async (_ev: ButtonEvent) => {
+        setStatus(Status.Translating);
+
+        const headers = new Headers();
+        headers.set('Authorization', 'Basic ' + btoa(`${liltApiKey}:${liltApiKey}`));
+
+        const url = liltApiUrl + encodeURIComponent(text);
+
+        setStatus(Status.Translating);
+        const response = await fetch(url, { headers });
+
+        if (response.ok) {
+            const j = await response.json();
+            setTranslation(j[0]);
+            setStatus(Status.Translated);
+        } else {
+            setTranslation(null);
+            setStatus(Status.Failed);
+        }
+    };
+}
+
+function message(status: Status): string {
+    switch (status) {
+        case Status.Ready: return _t("Translate this");
+        case Status.Translating: return _t("Translating ...");
+        default: return _t("Translation failed. Try again?");
+    }
 }
