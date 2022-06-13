@@ -43,7 +43,7 @@ import MessageEditHistoryDialog from "../dialogs/MessageEditHistoryDialog";
 import EditMessageComposer from '../rooms/EditMessageComposer';
 import LinkPreviewGroup from '../rooms/LinkPreviewGroup';
 import { IBodyProps } from "./IBodyProps";
-import { TranslateThis } from "./TranslateThis";
+import { shouldOfferTranslation, TranslateThis } from "./TranslateThis";
 import RoomContext from "../../../contexts/RoomContext";
 import AccessibleButton from '../elements/AccessibleButton';
 import { options as linkifyOpts } from "../../../linkify-matrix";
@@ -606,9 +606,12 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
                 { this.renderPendingModerationMarker() }
             </>;
         }
-        const suggestTranslation = true;
-        const isOwnEvent = this.props.mxEvent?.getSender() === MatrixClientPeg.get().getUserId();
-        if (suggestTranslation && !isOwnEvent) {
+        const suggestTranslation = shouldOfferTranslation(
+            this.props.mxEvent?.getSender(),
+            MatrixClientPeg.get().getUserId(),
+            text,
+        );
+        if (suggestTranslation) {
             body = <>
                 { body }
                 <TranslateThis text={text} />

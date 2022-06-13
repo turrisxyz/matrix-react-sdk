@@ -14,14 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { ReactElement, useState } from 'react';
+import React, { Dispatch, ReactElement, SetStateAction, useState } from 'react';
 
 import { _t } from "../../../languageHandler";
 import SdkConfig from '../../../SdkConfig';
 import AccessibleButton, { ButtonEvent } from '../elements/AccessibleButton';
-
-const liltApiUrl = "https://lilt.com/2/translate?memory_id=69501&source=";
-const liltApiKey = SdkConfig.get().lilt_api_key;
 
 enum Status {
     Ready,
@@ -38,12 +35,18 @@ export function TranslateThis(props: IProps) {
     const [status, setStatus] = useState(Status.Ready);
     const [translation, setTranslation] = useState();
 
-    // TODO: don't show for my messages
-
     switch (status) {
         case Status.Translated: return renderTranslated(translation);
         default: return renderButton(props.text, status, setStatus, setTranslation);
     }
+}
+
+/**
+ * Decide whether we should offer a "translate this" button for a given
+ * message.
+ */
+export function shouldOfferTranslation(messageSender: string, currentUser: string, messageText: string) {
+    return liltShouldOfferTranslation(messageSender, currentUser, messageText);
 }
 
 function renderButton(text: string, status: Status, setStatus: any, setTranslation: any): ReactElement {
@@ -65,22 +68,19 @@ function renderTranslated(translation: string): ReactElement {
     </div>;
 }
 
-// TODO: fix `any`
-function onTranslateThisClick(text: string, setStatus: any, setTranslation: any) {
+function onTranslateThisClick(
+    text: string,
+    setStatus: Dispatch<SetStateAction<Status>>,
+    setTranslation: Dispatch<SetStateAction<string>>,
+) {
     return async (_ev: ButtonEvent) => {
         setStatus(Status.Translating);
 
-        const headers = new Headers();
-        headers.set('Authorization', 'Basic ' + btoa(`${liltApiKey}:${liltApiKey}`));
-
-        const url = liltApiUrl + encodeURIComponent(text);
-
         setStatus(Status.Translating);
-        const response = await fetch(url, { headers });
+        const translation = await liltTranslate(text);
 
-        if (response.ok) {
-            const j = await response.json();
-            setTranslation(j[0]);
+        if (translation !== null) {
+            setTranslation(translation);
             setStatus(Status.Translated);
         } else {
             setTranslation(null);
@@ -94,5 +94,31 @@ function message(status: Status): string {
         case Status.Ready: return _t("Translate this");
         case Status.Translating: return _t("Translating ...");
         default: return _t("Translation failed. Try again?");
+    }
+}
+
+// Lilt-specific code
+
+const liltApiUrl = "https://lilt.com/2/translate?memory_id=69501&source=";
+const liltApiKey = SdkConfig.get().lilt_api_key;
+
+function liltShouldOfferTranslation(messageSender: string, currentUser: string, _messageText: string) {
+    // Offer to translate all messages that were not sent by us.
+    return (messageSender !== currentUser);
+}
+
+async function liltTranslate(text: string): Promise<string | null> {
+    const headers = new Headers();
+    headers.set('Authorization', 'Basic ' + btoa(`${liltApiKey}:${liltApiKey}`));
+
+    const url = liltApiUrl + encodeURIComponent(text);
+
+    const response = await fetch(url, { headers });
+
+    if (response.ok) {
+        const j = await response.json();
+        return j[0];
+    } else {
+        return null;
     }
 }
