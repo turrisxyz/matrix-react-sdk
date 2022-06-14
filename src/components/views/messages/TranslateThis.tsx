@@ -46,7 +46,9 @@ export function TranslateThis(props: IProps) {
  * message.
  */
 export function shouldOfferTranslation(messageSender: string, currentUser: string, messageText: string) {
-    return liltShouldOfferTranslation(messageSender, currentUser, messageText);
+    // Don't translate our own messages - if not our own, ask the translation
+    // code whether this looks like text not in our own language.
+    return messageSender !== currentUser && liltShouldOfferTranslation(messageText);
 }
 
 function renderButton(text: string, status: Status, setStatus: any, setTranslation: any): ReactElement {
@@ -127,9 +129,30 @@ const liltMemories = {
     "de": 69706,
 };
 
-function liltShouldOfferTranslation(messageSender: string, currentUser: string, _messageText: string) {
-    // Offer to translate all messages that were not sent by us.
-    return (messageSender !== currentUser);
+const englishSegments = [
+    " all ",
+    " and ",
+    " from ",
+    " had ",
+    " has ",
+    " thanks ",
+    " that ",
+    " the ",
+    " this ",
+    " yeah ",
+];
+
+function liltShouldOfferTranslation(messageText: string) {
+    // Very dumb implementation: hard-coded to English as a target, and
+    // only looks for certain letters and words to identify English text.
+
+    const lc = messageText.toLowerCase();
+    for (const segment of englishSegments) {
+        if (lc.includes(segment.toLowerCase())) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function sleepTime(pollNumber: number) {
