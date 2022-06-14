@@ -100,7 +100,7 @@ function message(status: Status): string {
 // Lilt-specific code
 
 const liltApiKey = SdkConfig.get().lilt_api_key;
-const liltPollTimeMs = 1000;
+const liltPollTimeMs = 100;
 const liltMaxPolls = 20;
 
 /*
@@ -132,6 +132,38 @@ function liltShouldOfferTranslation(messageSender: string, currentUser: string, 
     return (messageSender !== currentUser);
 }
 
+function sleepTime(pollNumber: number) {
+    return liltPollTimeMs * Math.min(32, Math.pow(2, pollNumber + 1));
+}
+
+/**
+ * Fetch from the supplied URL repeatedly, until the supplied function returns non-null.
+ */
+async function pollFor(
+    url: string,
+    headers: Headers,
+    checkResponse: (json: object) => string | null,
+): Promise<string | null> {
+    for (let numPolls = 0; numPolls < liltMaxPolls; numPolls++) {
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+            console.warn(`Failed polling ${url}.`);
+            return null;
+        }
+
+        const json = await response.json();
+        const answer = checkResponse(json);
+        if (answer !== null) {
+            return answer as string;
+        }
+
+        await sleep(sleepTime(numPolls));
+        numPolls++;
+    }
+    console.warn(`Gave up polling ${url}.`);
+    return null;
+}
+
 async function liltTranslate(text: string): Promise<string | null> {
     const headers = new Headers();
     headers.set('Authorization', 'Basic ' + btoa(`${liltApiKey}:${liltApiKey}`));
@@ -147,22 +179,19 @@ async function liltTranslate(text: string): Promise<string | null> {
     }
     const fileId = (await responseUpload.json()).id;
 
-    let detectedLang = null;
-    let checkUploadTries = 0;
-    while (detectedLang == null) {
-        const responseCheckUpload = await fetch(liltUrls.checkUpload.replace("FILE_ID", fileId), { headers });
-        if (!responseCheckUpload.ok) {
-            console.warn("Failed checking upload of translation text.");
-            return null;
-        }
-        detectedLang = (await responseCheckUpload.json())[0].detected_lang;
-        checkUploadTries++;
-        if (checkUploadTries >= liltMaxPolls) {
-            break;
-        }
-        await sleep(liltPollTimeMs);
+    const detectedLang = await pollFor(
+        liltUrls.checkUpload.replace("FILE_ID", fileId),
+        headers,
+        (json: object) => json[0].detected_lang ?? null,
+    );
+
+    if (detectedLang === "und") {
+        console.warn("Unable to detect the language of this message.");
+        return null;
     }
-    if (!liltMemories.hasOwnProperty(detectedLang)) {
+
+    const memoryId = liltMemories[detectedLang];
+    if (!memoryId) {
         if (detectedLang === null) {
             console.warn("API was unable to detect language for translation.");
         } else {
@@ -171,7 +200,6 @@ async function liltTranslate(text: string): Promise<string | null> {
         return null;
     }
 
-    const memoryId = liltMemories[detectedLang];
     const responseTranslate = await fetch(
         liltUrls.translate.replace("MEMORY_ID", memoryId).replace("FILE_ID", fileId),
         { headers, method: "POST" },
@@ -182,23 +210,13 @@ async function liltTranslate(text: string): Promise<string | null> {
     }
     const translationId = (await responseTranslate.json())[0].id;
 
-    let translateStatus = null;
-    let checkTranslateTries = 0;
-    while (translateStatus !== "ReadyForDownload") {
-        const responseCheckTranslate = await fetch(
-            liltUrls.checkTranslate.replace("TRANSLATION_ID", translationId),
-            { headers },
-        );
-        if (!responseCheckTranslate.ok) {
-            console.warn("Failed checking translation status.");
-            return null;
-        }
-        translateStatus = (await responseCheckTranslate.json()).status;
-        checkTranslateTries++;
-        if (checkTranslateTries >= liltMaxPolls) {
-            break;
-        }
-        await sleep(liltPollTimeMs);
+    const translationStatus = await pollFor(
+        liltUrls.checkTranslate.replace("TRANSLATION_ID", translationId),
+        headers,
+        (json: object) => json[0].status === "ReadyForDownload" ? json[0].status : null,
+    );
+    if (translationStatus !== "ReadyForDownload") {
+        return null;
     }
 
     const responseDownload = await fetch(liltUrls.download.replace("TRANSLATION_ID", translationId), { headers });
