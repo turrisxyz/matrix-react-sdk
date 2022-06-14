@@ -99,8 +99,33 @@ function message(status: Status): string {
 
 // Lilt-specific code
 
-const liltApiUrl = "https://lilt.com/2/translate?memory_id=69501&source=";
 const liltApiKey = SdkConfig.get().lilt_api_key;
+const liltPollTimeMs = 1000;
+const liltMaxPolls = 20;
+
+/*
+ * Original, simpler way: do a GET request to https://lilt.com/2/translate?memory_id=69501&source=My%20message.
+ * This works, but does not allow detecting the source message language.
+ */
+
+const liltUrls = {
+    upload: "https://lilt.com/2/files?name=element_web.txt&langId=true",
+    checkUpload: "https://lilt.com/2/files?id=FILE_ID",
+    translate: `https://lilt.com/2/translate/file?memoryId=MEMORY_ID&fileId=FILE_ID`,
+    checkTranslate: "https://lilt.com/2/translate/file?translationIds=TRANSLATION_ID",
+    download: "https://lilt.com/2/translate/files?id=TRANSLATION_ID",
+};
+
+/**
+ * This is the main thing we would need to fix to make this not just a
+ * prototype: we have hard-coded a list of pre-created Memory objects
+ * in Lilt, one for each source language, and all with a target language
+ * of English.
+ */
+const liltMemories = {
+    "fr": 69501,
+    "de": 69706,
+};
 
 function liltShouldOfferTranslation(messageSender: string, currentUser: string, _messageText: string) {
     // Offer to translate all messages that were not sent by us.
@@ -111,14 +136,80 @@ async function liltTranslate(text: string): Promise<string | null> {
     const headers = new Headers();
     headers.set('Authorization', 'Basic ' + btoa(`${liltApiKey}:${liltApiKey}`));
 
-    const url = liltApiUrl + encodeURIComponent(text);
+    const uploadHeaders = new Headers();
+    uploadHeaders.set('Authorization', 'Basic ' + btoa(`${liltApiKey}:${liltApiKey}`));
+    uploadHeaders.set('Content-Type', 'application/octet-stream');
 
-    const response = await fetch(url, { headers });
-
-    if (response.ok) {
-        const j = await response.json();
-        return j[0];
-    } else {
+    const responseUpload = await fetch(liltUrls.upload, { headers: uploadHeaders, method: "POST", body: text });
+    if (!responseUpload.ok) {
+        console.warn("Failed uploading text to translate.");
         return null;
     }
+    const fileId = (await responseUpload.json()).id;
+
+    let detectedLang = null;
+    let checkUploadTries = 0;
+    while (detectedLang == null) {
+        const responseCheckUpload = await fetch(liltUrls.checkUpload.replace("FILE_ID", fileId), { headers });
+        if (!responseCheckUpload.ok) {
+            console.warn("Failed checking upload of translation text.");
+            return null;
+        }
+        detectedLang = (await responseCheckUpload.json())[0].detected_lang;
+        checkUploadTries++;
+        if (checkUploadTries >= liltMaxPolls) {
+            break;
+        }
+        await sleep(liltPollTimeMs);
+    }
+    if (!liltMemories.hasOwnProperty(detectedLang)) {
+        if (detectedLang === null) {
+            console.warn("API was unable to detect language for translation.");
+        } else {
+            console.warn(`Not set up to translate from ${detectedLang}.`);
+        }
+        return null;
+    }
+
+    const memoryId = liltMemories[detectedLang];
+    const responseTranslate = await fetch(
+        liltUrls.translate.replace("MEMORY_ID", memoryId).replace("FILE_ID", fileId),
+        { headers, method: "POST" },
+    );
+    if (!responseTranslate.ok) {
+        console.warn("Failed requesting translation of uploaded file.");
+        return null;
+    }
+    const translationId = (await responseTranslate.json())[0].id;
+
+    let translateStatus = null;
+    let checkTranslateTries = 0;
+    while (translateStatus !== "ReadyForDownload") {
+        const responseCheckTranslate = await fetch(
+            liltUrls.checkTranslate.replace("TRANSLATION_ID", translationId),
+            { headers },
+        );
+        if (!responseCheckTranslate.ok) {
+            console.warn("Failed checking translation status.");
+            return null;
+        }
+        translateStatus = (await responseCheckTranslate.json()).status;
+        checkTranslateTries++;
+        if (checkTranslateTries >= liltMaxPolls) {
+            break;
+        }
+        await sleep(liltPollTimeMs);
+    }
+
+    const responseDownload = await fetch(liltUrls.download.replace("TRANSLATION_ID", translationId), { headers });
+    if (!responseDownload.ok) {
+        console.warn("Failed downloading translation.");
+        return null;
+    }
+
+    return await responseDownload.text();
+}
+
+async function sleep(milliseconds: number) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
