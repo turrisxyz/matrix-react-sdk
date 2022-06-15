@@ -50,7 +50,7 @@ import { ViewRoomPayload } from "../../../dispatcher/payloads/ViewRoomPayload";
 import { GetRelationsForEvent, IEventTileOps } from "../rooms/EventTile";
 import { OpenForwardDialogPayload } from "../../../dispatcher/payloads/OpenForwardDialogPayload";
 import { OpenReportEventDialogPayload } from "../../../dispatcher/payloads/OpenReportEventDialogPayload";
-import { createMapSiteLink } from '../../../utils/location';
+import { createMapSiteLinkFromEvent } from '../../../utils/location';
 
 interface IProps extends IPosition {
     chevronFace: ChevronFace;
@@ -173,7 +173,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     };
 
     private onViewSourceClick = (): void => {
-        Modal.createTrackedDialog('View Event Source', '', ViewSource, {
+        Modal.createDialog(ViewSource, {
             mxEvent: this.props.mxEvent,
         }, 'mx_Dialog_viewsource');
         this.closeMenu();
@@ -238,7 +238,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
 
     private onShareClick = (e: React.MouseEvent): void => {
         e.preventDefault();
-        Modal.createTrackedDialog('share room message dialog', '', ShareDialog, {
+        Modal.createDialog(ShareDialog, {
             target: this.props.mxEvent,
             permalinkCreator: this.props.permalinkCreator,
         });
@@ -286,7 +286,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
 
     private onEndPollClick = (): void => {
         const matrixClient = MatrixClientPeg.get();
-        Modal.createTrackedDialog('End Poll', '', EndPollDialog, {
+        Modal.createDialog(EndPollDialog, {
             matrixClient,
             event: this.props.mxEvent,
             getRelationsForEvent: this.props.getRelationsForEvent,
@@ -360,7 +360,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
 
         let openInMapSiteButton: JSX.Element;
         if (this.canOpenInMapSite(mxEvent)) {
-            const mapSiteLink = createMapSiteLink(mxEvent);
+            const mapSiteLink = createMapSiteLinkFromEvent(mxEvent);
             openInMapSiteButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconOpenInMapSite"
@@ -670,6 +670,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                     {...this.props}
                     className="mx_MessageContextMenu"
                     compact={true}
+                    data-testid="mx_MessageContextMenu"
                 >
                     { nativeItemsList }
                     { quickItemsList }

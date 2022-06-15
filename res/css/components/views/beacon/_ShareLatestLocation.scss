@@ -1,5 +1,5 @@
 /*
-Copyright 2019 New Vector Ltd
+Copyright 2022 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.mx_NotificationUserSettingsTab .mx_SettingsTab_heading {
-    margin-bottom: 10px; // Give some spacing between the title and the first elements
+.mx_ShareLatestLocation_icon {
+    height: 13px;
+    width: 13px;
+    color: $secondary-content;
+}
+
+.mx_ShareLatestLocation_copy {
+    // override copyable text style to make compact
+    .mx_CopyableText_copyButton {
+        margin-left: $spacing-8 !important;
+    }
 }
